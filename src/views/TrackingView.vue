@@ -84,23 +84,40 @@
       </div>
       
       <transition-group name="list" tag="div" class="records-container">
-        <div v-for="item in filteredRecords" :key="item.id || item.date + item.amount" class="record-item q-card">
-          <div class="record-main">
-            <div class="record-icon-bg">
-              <component :is="getCategoryIcon(item.type)" :size="18" color="#C5A059" />
+        <div v-for="item in filteredRecords" :key="item.id || item.date + item.amount" class="record-card-wrapper">
+          <div class="record-item q-card" @click="handleEdit(item)">
+            <div class="record-main">
+              <div class="record-icon-bg">
+                <component :is="getCategoryIcon(item.type)" :size="18" color="#C5A059" />
+              </div>
+              <div class="record-info">
+                <div class="type-row">
+                  <span class="record-type">{{ item.type }}</span>
+                  <button v-if="item.subItems && item.subItems.length > 0" 
+                          class="expand-toggle" 
+                          @click.stop="toggleExpand(item.id)">
+                    <component :is="expandedIds.has(item.id) ? ChevronDown : ChevronRight" :size="14" />
+                  </button>
+                </div>
+                <span class="record-date">{{ item.date }}</span>
+              </div>
             </div>
-            <div class="record-info">
-              <span class="record-type">{{ item.type }}</span>
-              <span class="record-date">{{ item.date }}</span>
+            <div class="record-actions">
+              <div :class="['record-amount', activeType === 'income' ? 'income' : 'expense']">
+                {{ activeType === 'income' ? '+' : '-' }}￥{{ formatNumber(item.amount) }}
+              </div>
+              <button class="delete-btn" @click.stop="handleDelete(item.id)">
+                <Trash2 :size="16" />
+              </button>
             </div>
           </div>
-          <div class="record-actions">
-            <div :class="['record-amount', activeType === 'income' ? 'income' : 'expense']">
-              {{ activeType === 'income' ? '+' : '-' }}￥{{ item.amount }}
+          
+          <!-- Sub-items expansion -->
+          <div v-if="expandedIds.has(item.id) && item.subItems" class="sub-items-list">
+            <div v-for="sub in item.subItems" :key="sub.id" class="sub-item">
+              <span class="sub-label">{{ sub.label }}</span>
+              <span class="sub-amount">￥{{ formatNumber(sub.amount) }}</span>
             </div>
-            <button class="delete-btn" @click="handleDelete(item.id)">
-              <Trash2 :size="16" />
-            </button>
           </div>
         </div>
       </transition-group>
@@ -111,12 +128,12 @@
       </div>
     </div>
 
-    <!-- Elegant Modal for Adding Record -->
-    <div v-if="showModal" class="q-modal-mask" @click.self="showModal = false">
+    <!-- Elegant Modal for Adding/Editing Record -->
+    <div v-if="showModal" class="q-modal-mask" @click.self="handleCloseModal">
       <div class="q-modal-container">
         <div class="modal-header">
-          <h3>新增{{ activeType === 'expense' ? '支出' : '收入' }}</h3>
-          <button class="close-btn" @click="showModal = false">
+          <h3>{{ editingId ? '编辑' : '新增' }}{{ activeType === 'expense' ? '支出' : '收入' }}</h3>
+          <button class="close-btn" @click="handleCloseModal">
             <X :size="20" />
           </button>
         </div>
@@ -126,8 +143,9 @@
             <label>金额</label>
             <div class="amount-input">
               <span class="currency">￥</span>
-              <input type="number" v-model="form.amount" placeholder="0.00" ref="amountInput" />
+              <input type="number" v-model="form.amount" placeholder="0.00" ref="amountInput" :disabled="form.type === '自我投资' && form.subItems.length > 0" />
             </div>
+            <p v-if="form.type === '自我投资' && form.subItems.length > 0" class="amount-tip">金额由子项合计得出</p>
           </div>
 
           <div class="input-group">
@@ -144,13 +162,32 @@
             </div>
           </div>
 
+          <!-- Sub-items for Self Investment -->
+          <div v-if="form.type === '自我投资'" class="input-group sub-items-section">
+            <div class="sub-header">
+              <label>具体项目 (二级分类)</label>
+              <button class="add-sub-btn" @click="addSubItem">
+                <Plus :size="14" /> 添加
+              </button>
+            </div>
+            <div class="sub-items-edit">
+              <div v-for="(sub, index) in form.subItems" :key="index" class="sub-edit-row">
+                <input type="text" v-model="sub.label" placeholder="项目名称 (如: AI图书)" class="sub-label-input" />
+                <input type="number" v-model="sub.amount" placeholder="金额" class="sub-amount-input" @input="updateTotalFromSubItems" />
+                <button class="remove-sub-btn" @click="removeSubItem(index)">
+                  <Trash2 :size="14" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="input-group">
             <label>月份</label>
             <input type="month" v-model="form.date" />
           </div>
 
           <button class="q-button submit-btn" @click="handleSubmit">
-            确认入账
+            {{ editingId ? '保存修改' : '确认入账' }}
           </button>
         </div>
       </div>
@@ -161,14 +198,26 @@
 <script setup>
 import { ref, reactive, computed, nextTick, watch } from 'vue'
 import { useAssetStore } from '../store/assets'
-import { Plus, Trash2, X, Inbox, Utensils, ShoppingBag, GraduationCap, CreditCard, Wallet, Banknote, Briefcase, TrendingUp } from 'lucide-vue-next'
+import { Plus, Trash2, X, Inbox, Utensils, ShoppingBag, GraduationCap, CreditCard, Wallet, Banknote, Briefcase, TrendingUp, ChevronDown, ChevronRight } from 'lucide-vue-next'
 
 const store = useAssetStore()
 const activeType = ref('expense')
 const timeDimension = ref('month') // 'month' or 'year'
 const showModal = ref(false)
+const editingId = ref(null)
 const amountInput = ref(null)
 const hoveredIndex = ref(null)
+const expandedIds = ref(new Set())
+
+const toggleExpand = (id) => {
+  const newSet = new Set(expandedIds.value)
+  if (newSet.has(id)) {
+    newSet.delete(id)
+  } else {
+    newSet.add(id)
+  }
+  expandedIds.value = newSet
+}
 
 const expenseCategories = ['餐饮消费', '生活消费', '自我投资', '还款', '其他']
 const incomeCategories = ['工资', '副业', '分红', '其他']
@@ -177,7 +226,7 @@ const categories = computed(() =>
   activeType.value === 'expense' ? expenseCategories : incomeCategories
 )
 
-const formatNumber = (num) => num.toLocaleString()
+const formatNumber = (num) => num ? num.toLocaleString() : '0'
 
 const filteredRecords = computed(() => {
   const records = activeType.value === 'expense' ? store.expenseRecords : store.incomeRecords
@@ -239,7 +288,30 @@ const pieData = computed(() => {
 const form = reactive({
   amount: '',
   type: '',
-  date: new Date().toISOString().slice(0, 7) // YYYY-MM
+  date: new Date().toISOString().slice(0, 7), // YYYY-MM
+  subItems: []
+})
+
+const addSubItem = () => {
+  form.subItems.push({ id: Date.now(), label: '', amount: '' })
+}
+
+const removeSubItem = (index) => {
+  form.subItems.splice(index, 1)
+  updateTotalFromSubItems()
+}
+
+const updateTotalFromSubItems = () => {
+  if (form.type === '自我投资' && form.subItems.length > 0) {
+    const total = form.subItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0)
+    form.amount = total
+  }
+}
+
+watch(() => form.type, (newType) => {
+  if (newType === '自我投资' && form.subItems.length === 0 && !editingId.value) {
+    addSubItem()
+  }
 })
 
 // Initialize type when categories change or modal opens
@@ -268,25 +340,49 @@ const getCategoryIcon = (type) => {
   return iconMap[type] || Wallet
 }
 
+const handleEdit = (item) => {
+  editingId.value = item.id
+  form.amount = item.amount
+  form.type = item.type
+  form.date = item.date
+  form.subItems = item.subItems ? JSON.parse(JSON.stringify(item.subItems)) : []
+  showModal.value = true
+}
+
+const handleCloseModal = () => {
+  showModal.value = false
+  editingId.value = null
+  form.amount = ''
+  form.type = ''
+  form.date = new Date().toISOString().slice(0, 7)
+  form.subItems = []
+}
+
 const handleSubmit = () => {
   if (!form.amount) return
   
   const record = {
     amount: parseFloat(form.amount),
     type: form.type,
-    date: form.date
+    date: form.date,
+    subItems: form.type === '自我投资' ? form.subItems.filter(s => s.label && s.amount) : []
   }
 
-  if (activeType.value === 'expense') {
-    store.addExpense(record)
+  if (editingId.value) {
+    if (activeType.value === 'expense') {
+      store.updateExpense(editingId.value, record)
+    } else {
+      store.updateIncome(editingId.value, record)
+    }
   } else {
-    store.addIncome(record)
+    if (activeType.value === 'expense') {
+      store.addExpense(record)
+    } else {
+      store.addIncome(record)
+    }
   }
 
-  // Reset form and close
-  form.amount = ''
-  form.type = ''
-  showModal.value = false
+  handleCloseModal()
 }
 
 const handleDelete = (id) => {
@@ -400,6 +496,46 @@ watch(showModal, (val) => {
 .record-type {
   font-weight: 600;
   font-size: 15px;
+  color: #333;
+}
+
+.type-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expand-toggle {
+  background: transparent;
+  border: none;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  color: #999;
+  cursor: pointer;
+}
+
+.sub-items-list {
+  padding: 0 16px 12px 68px;
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.sub-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+  padding: 4px 0;
+  border-bottom: 1px dashed #F0F0F0;
+}
+
+.sub-item:last-child {
+  border-bottom: none;
+}
+
+.sub-amount {
+  font-weight: 600;
   color: #333;
 }
 
@@ -644,6 +780,77 @@ watch(showModal, (val) => {
 
 .amount-input input:focus {
   box-shadow: none;
+}
+
+.amount-tip {
+  font-size: 11px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.sub-items-section {
+  background: #F9F9F9;
+  padding: 12px;
+  border-radius: 12px;
+  margin-top: 16px;
+}
+
+.sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.sub-header label {
+  margin-bottom: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.add-sub-btn {
+  background: var(--primary-color);
+  color: #FFF;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.sub-edit-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.sub-label-input {
+  flex: 2;
+  padding: 8px !important;
+  font-size: 13px !important;
+  margin-bottom: 0 !important;
+}
+
+.sub-amount-input {
+  flex: 1;
+  padding: 8px !important;
+  font-size: 13px !important;
+  margin-bottom: 0 !important;
+}
+
+.remove-sub-btn {
+  background: transparent;
+  border: none;
+  color: #DDD;
+  cursor: pointer;
+}
+
+.remove-sub-btn:hover {
+  color: #FF7675;
 }
 
 .category-grid {

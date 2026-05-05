@@ -12,7 +12,16 @@ export const useAssetStore = defineStore('assets', () => {
   const expenseRecords = ref([
     { id: 1, type: '餐饮消费', amount: 3000, date: '2026-05-01' },
     { id: 2, type: '生活消费', amount: 2000, date: '2026-05-02' },
-    { id: 3, type: '自我投资', amount: 1500, date: '2026-05-04' },
+    { 
+      id: 3, 
+      type: '自我投资', 
+      amount: 1500, 
+      date: '2026-05-04',
+      subItems: [
+        { id: 101, label: 'AI 图书', amount: 500 },
+        { id: 102, label: '技能课程', amount: 1000 }
+      ]
+    },
     { id: 4, type: '还款', amount: 4000, date: '2026-05-01' }
   ])
 
@@ -73,10 +82,36 @@ export const useAssetStore = defineStore('assets', () => {
     incomeRecords.value.push({ ...record, id: Date.now() })
   }
 
+  function updateIncome(id, updatedRecord) {
+    const index = incomeRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      incomeRecords.value[index] = { ...incomeRecords.value[index], ...updatedRecord }
+    }
+  }
+
   function addExpense(record) {
-    expenseRecords.value.push({ ...record, id: Date.now() })
+    const newRecord = { ...record, id: Date.now() }
+    expenseRecords.value.push(newRecord)
     if (record.type === '自我投资') {
       selfInvestmentTotal.value += record.amount
+    }
+  }
+
+  function updateExpense(id, updatedRecord) {
+    const index = expenseRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const oldRecord = expenseRecords.value[index]
+      
+      // Update selfInvestmentTotal if type is '自我投资'
+      if (oldRecord.type === '自我投资') {
+        selfInvestmentTotal.value -= oldRecord.amount
+      }
+      
+      expenseRecords.value[index] = { ...oldRecord, ...updatedRecord }
+      
+      if (expenseRecords.value[index].type === '自我投资') {
+        selfInvestmentTotal.value += expenseRecords.value[index].amount
+      }
     }
   }
 
@@ -113,7 +148,9 @@ export const useAssetStore = defineStore('assets', () => {
     engelCoefficient,
     savingsRate,
     addIncome,
+    updateIncome,
     addExpense,
+    updateExpense,
     updateAsset,
     addAssetCategory,
     deleteAssetCategory
