@@ -1,0 +1,104 @@
+/* Global Q-version Cream Style */
+/* Global Bright Luxury Style */
+.q-button {
+  background: var(--gold-gradient);
+  border: none;
+  border-radius: 30px;
+  padding: 12px 24px;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(197, 160, 89, 0.2);
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.q-button:active {
+  transform: scale(0.96);
+  box-shadow: 0 4px 10px rgba(197, 160, 89, 0.1);
+}
+
+.q-card {
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  border: 1px solid rgba(197, 160, 89, 0.1);
+  box-shadow: var(--shadow-elegant);
+  margin-bottom: 20px;
+  position: relative;
+  transition: transform 0.3s ease;
+}
+
+.title-main {
+  font-family: 'Bodoni Moda', 'Noto Serif SC', serif;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--text-color);
+  margin-bottom: 32px;
+  text-align: center;
+  letter-spacing: 0.1em;
+  font-style: italic;
+}
+
+.page-container {
+  padding: 32px 24px;
+}
+
+h2 {
+  font-family: 'Bodoni Moda', 'Noto Serif SC', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-color);
+  margin-bottom: 20px;
+}
+
+input, select {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #E0E0E0;
+  background: #FFF;
+  outline: none;
+  font-size: 15px;
+  color: var(--text-color);
+  margin-bottom: 16px;
+  transition: all 0.3s;
+}
+
+input:focus, select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+/* Modal Style */
+.q-modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.q-modal-container {
+  width: 100%;
+  max-width: 500px;
+  background: #FFF;
+  border-radius: 24px 24px 0 0;
+  padding: 32px 24px;
+  animation: slideUp 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
